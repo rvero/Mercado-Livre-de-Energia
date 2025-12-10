@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="shortcut icon" href="ico.ico" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketplace de Energia - Mercado Livre Simulado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos customizados para o layout */
+        .content-area {
+            min-height: calc(100vh - 80px); /* 100vh - altura do cabeçalho */
+        }
+        .container {
+            max-width: 1200px;
+        }
+        /* Estilos específicos para o chat */
+        .chat-bubble-user {
+            background-color: #14e742; /* blue-500 */
+            color: white;
+            align-self: flex-end;
+            border-radius: 12px 12px 0 12px;
+        }
+        .chat-bubble-other {
+            background-color: #e5e7eb; /* gray-200 */
+            color: black;
+            align-self: flex-start;
+            border-radius: 12px 12px 12px 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app">
+        <header class="bg-white shadow-md sticky top-0 z-50">
+            <div class="container mx-auto px-4 flex justify-between items-center h-20">
+                <a href="#home" class="text-2xl font-bold text-blue-600">
+                    Mercado Livre de Energia
+                </a>
+                <nav id="nav-links" class="space-x-4"></nav>
+            </div>
+        </header>
+
+        <main id="content" class="content-area container mx-auto p-4"></main>
+
+        <footer class="bg-gray-800 text-white p-6 mt-10">
+            <div class="container mx-auto text-center">
+                <p>&copy; 2025 Mercado Livre de Energia. Todos os direitos reservados.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // =========================================================
+        // 1. DADOS MOCKADOS (SIMULAÇÃO DE BANCO DE DADOS)
+        // =========================================================
+
+        const MOCK_VENDORS = [
+            { id: 'v1', name: 'Soluções Energéticas Alfa', bio: 'Líder em energia solar e eólica para grandes e pequenos consumidores.', email: 'contato@alfa.com', phone: '(11) 98765-4321', photo: 'hhttps://i.imgur.com/0QRmHWP.jpeg', gallery: ['https://i.imgur.com/waWpXMZ.jpeg', 'https://i.imgur.com/9TfM4bx.jpeg', 'https://i.imgur.com/waWpXMZ.jpeg'] },
+            { id: 'v2', name: 'PowerHub Distribuidora', bio: 'Foco total em bioenergia e fontes renováveis. Preços competitivos e sustentáveis.', email: 'vendas@powerhub.com', phone: '(21) 99876-5432', photo: 'blob:https://imgur.com/d24c597b-2354-4958-a051-4a9b6757638d', gallery: ['https://i.imgur.com/waWpXMZ.jpeg', 'https://i.imgur.com/9TfM4bx.jpeg'] },
+            { id: 'v3', name: 'EcoWatt Consultoria', bio: 'Desde 1990 no mercado. Consultoria completa para migração ao Mercado Livre.', email: 'faleconosco@ecowatt.com', phone: '(31) 97654-3210', photo: 'https://i.imgur.com/EoZkrrJ.jpeg', gallery: ['https://i.imgur.com/9TfM4bx.jpeg'] },
+        ];
+
+        const MOCK_CONSUMERS = [
+            { id: 'c1', name: 'João da Silva', email: 'joao@teste.com' },
+            { id: 'c2', name: 'Maria Souza', email: 'maria@teste.com' },
+        ];
+
+        // MOCK de Usuários (credenciais simuladas)
+        const MOCK_USERS = [
+            // Consumidor (email: consumidor@teste.com, senha: 123)
+            { id: 'c1', email: 'consumidor@teste.com', password: '123', role: 'consumer', name: 'João Consumidor Teste' },
+            // Vendedor (email: vendedor@teste.com, senha: 456)
+            { id: 'v1', email: 'vendedor@teste.com', password: '456', role: 'vendor', name: 'Soluções Energéticas Alfa' },
+        ];
+
+        // MOCK de Pagamentos (apenas para exibição no Painel do Consumidor)
+        const MOCK_PAYMENTS = {
+            'c1': {
+                pending: [
+                    { id: 'p101', vendor: 'PowerHub Distribuidora', amount: 1550.75, due: '15/12/2025' },
+                    { id: 'p102', vendor: 'EcoWatt Consultoria', amount: 350.00, due: '20/12/2025' }
+                ],
+                paid: [
+                    { id: 'p099', vendor: 'Soluções Energéticas Alfa', amount: 1200.50, date: '10/11/2025' }
+                ]
+            }
+        };
+
+        // =========================================================
+        // 2. SIMULAÇÃO DE PERSISTÊNCIA (localStorage)
+        // =========================================================
+
+        const LS_KEY_USER = 'marketplace_simulated_user';
+        const LS_KEY_CHATS = 'marketplace_simulated_chats';
+
+        /**
+         * Retorna o usuário logado simulado (ou null).
+         * @returns {{id: string, email: string, role: string, name: string}|null}
+         */
+        function getLoggedUser() {
+            const userData = localStorage.getItem(LS_KEY_USER);
+            return userData ? JSON.parse(userData) : null;
+        }
+
+        /**
+         * Simula o login e salva no localStorage.
+         * @param {object} user - O objeto de usuário mockado.
+         */
+        function simulateLogin(user) {
+            localStorage.setItem(LS_KEY_USER, JSON.stringify(user));
+        }
+
+        /**
+         * Simula o logout.
+         */
+        function simulateLogout() {
+            localStorage.removeItem(LS_KEY_USER);
+            window.location.hash = '#home';
+        }
+
+        /**
+         * Recupera ou inicializa a thread de chat.
+         * @returns {object} Um objeto onde a chave é 'consumidorId_vendedorId' e o valor é o array de mensagens.
+         */
+        function getChatThreads() {
+            const chats = localStorage.getItem(LS_KEY_CHATS);
+            return chats ? JSON.parse(chats) : {};
+        }
+
+        /**
+         * Salva as threads de chat no localStorage.
+         * @param {object} threads
+         */
+        function saveChatThreads(threads) {
+            localStorage.setItem(LS_KEY_CHATS, JSON.stringify(threads));
+        }
+
+        // =========================================================
+        // 3. FUNÇÕES UTILITÁRIAS
+        // =========================================================
+
+        const contentDiv = document.getElementById('content');
+        const navDiv = document.getElementById('nav-links');
+
+        /**
+         * Renderiza o conteúdo principal no div 'content'.
+         * @param {string} htmlContent - O HTML a ser injetado.
+         */
+        function render(htmlContent) {
+            contentDiv.innerHTML = htmlContent;
+        }
+
+        /**
+         * Cria um botão estilizado.
+         * @param {string} text
+         * @param {string} href
+         * @param {string} styleClass - Estilos Tailwind CSS (e.g., 'bg-blue-600 hover:bg-blue-700').
+         * @returns {string} HTML do botão.
+         */
+        function createButton(text, href, styleClass = 'bg-blue-600 hover:bg-blue-700 text-white') {
+            return `<a href="${href}" class="px-4 py-2 rounded-lg font-semibold transition duration-200 ${styleClass}">${text}</a>`;
+        }
+        
+        // =========================================================
+        // 4. ROTAS E RENDERIZAÇÃO DE PÁGINAS
+        // =========================================================
+
+        /**
+         * Configura o cabeçalho (nav-links) com base no estado de login.
+         */
+        function updateHeaderNav() {
+            const user = getLoggedUser();
+            let navHtml = '';
+
+            if (user) {
+                if (user.role === 'consumer') {
+                    navHtml += createButton('Loja', '#shop', 'text-blue-600 hover:text-blue-800 bg-transparent shadow-none');
+                    navHtml += createButton('Meu Painel', '#consumer-panel', 'text-blue-600 hover:text-blue-800 bg-transparent shadow-none');
+                } else if (user.role === 'vendor') {
+                    navHtml += createButton('Painel', '#vendor-panel', 'text-blue-600 hover:text-blue-800 bg-transparent shadow-none');
+                }
+                navHtml += createButton('Suporte', '#support', 'text-blue-600 hover:text-blue-800 bg-transparent shadow-none');
+                navHtml += `<button onclick="simulateLogout()" class="px-4 py-2 rounded-lg font-semibold transition duration-200 bg-red-500 hover:bg-red-600 text-white">Sair</button>`;
+            } else {
+                navHtml += createButton('Suporte', '#support', 'text-gray-600 hover:text-gray-800 bg-transparent shadow-none');
+                navHtml += createButton('Login', '#login', 'bg-blue-600 hover:bg-blue-700 text-white');
+                navHtml += createButton('Cadastro', '#register', 'bg-gray-200 hover:bg-gray-300 text-gray-800');
+            }
+
+            navDiv.innerHTML = navHtml;
+        }
+
+
+        // --- 4.1. Páginas de Acesso (Home, Login, Cadastro) ---
+
+        function renderHomePage() {
+            const user = getLoggedUser();
+            if (user) {
+                // Comportamento obrigatório: Redirecionar se já logado
+                window.location.hash = user.role === 'consumer' ? '#shop' : '#vendor-panel';
+                return;
+            }
+
+            const html = `
+                <div class="text-center py-20">
+                    <h1 class="text-5xl font-extrabold text-gray-900 mb-4">Bem-vindo ao Mercado Livre de Energia</h1>
+                    <p class="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">Conectando grandes consumidores a fornecedores de energia sustentável e competitiva.</p>
+                    
+                    <div class="flex justify-center space-x-6">
+                        ${createButton('Entrar', '#login', 'bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-3')}
+                        ${createButton('Cadastrar', '#register', 'bg-gray-200 hover:bg-gray-300 text-gray-800 text-lg px-8 py-3')}
+                    </div>
+
+                    <div class="mt-16 grid grid-cols-1 md:grid-cols-2 gap-10 text-left">
+                        <div class="p-6 border border-gray-200 rounded-xl shadow-lg hover:shadow-xl transition duration-300 bg-white">
+                            <h2 class="text-3xl font-bold text-blue-600 mb-3">Para Consumidores</h2>
+                            <p class="text-gray-600 mb-4">Tenha acesso a um mercado com diversas opções de fornecedores, encontre o melhor preço e a fonte de energia ideal para sua empresa. Migre para o Mercado Livre de Energia com segurança.</p>
+                            ${createButton('Quero Comprar', '#register-consumer', 'bg-green-500 hover:bg-green-600')}
+                        </div>
+                        <div class="p-6 border border-gray-200 rounded-xl shadow-lg hover:shadow-xl transition duration-300 bg-white">
+                            <h2 class="text-3xl font-bold text-blue-600 mb-3">Para Vendedores</h2>
+                            <p class="text-gray-600 mb-4">Expanda seus negócios, liste seus pacotes de energia e conecte-se diretamente com milhares de consumidores. Maximize seu alcance no Mercado Livre.</p>
+                            ${createButton('Quero Vender', '#register-vendor', 'bg-purple-500 hover:bg-purple-600')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            render(html);
+        }
+
+        function renderLoginPage() {
+            const html = `
+                <div class="max-w-md mx-auto my-16 p-8 bg-white shadow-xl rounded-xl">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 text-center">Acesso ao Marketplace</h2>
+                    <form id="login-form" class="space-y-6">
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email:</label>
+                            <input type="email" id="email" name="email" value="consumidor@teste.com" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700">Senha:</label>
+                            <input type="password" id="password" name="password" value="123" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <p id="login-error" class="text-red-500 text-sm hidden">Credenciais inválidas.</p>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md transition duration-200">
+                            Entrar
+                        </button>
+                    </form>
+                    <p class="mt-4 text-sm text-center">
+                        Não tem conta? <a href="#register" class="text-blue-600 hover:text-blue-800 font-medium">Cadastre-se</a>
+                    </p>
+                    <div class="mt-6 text-center text-sm text-gray-500">
+                        <p>Contas teste:</p>
+                        <p>Consumidor: <strong>consumidor@teste.com</strong> / <strong>123</strong></p>
+                        <p>Vendedor: <strong>vendedor@teste.com</strong> / <strong>456</strong></p>
+                    </div>
+                </div>
+            `;
+            render(html);
+
+            document.getElementById('login-form').addEventListener('submit', function(event) {
+                event.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const errorDiv = document.getElementById('login-error');
+                
+                const user = MOCK_USERS.find(u => u.email === email && u.password === password);
+
+                if (user) {
+                    simulateLogin(user);
+                    // Redirecionamento obrigatório
+                    const redirectHash = user.role === 'consumer' ? '#shop' : '#vendor-panel';
+                    window.location.hash = redirectHash;
+                    errorDiv.classList.add('hidden');
+                } else {
+                    errorDiv.classList.remove('hidden');
+                }
+            });
+        }
+
+        function renderRegisterPage(role) {
+            const isConsumer = role === 'consumer';
+            const title = isConsumer ? 'Cadastro de Consumidor' : 'Cadastro de Vendedor';
+            const redirectHash = isConsumer ? '#login' : '#login'; // Após cadastro simulado, volta para login
+            
+            // Campos adicionais específicos para Vendedor
+            const vendorFields = !isConsumer ? `
+                <div>
+                    <label for="company-name" class="block text-sm font-medium text-gray-700">Nome da Empresa:</label>
+                    <input type="text" id="company-name" name="company-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="vendor-photo" class="block text-sm font-medium text-gray-700">Upload de Foto/Logo (Simulado):</label>
+                    <input type="file" id="vendor-photo" name="vendor-photo" class="mt-1 block w-full text-sm text-gray-500">
+                    <p class="text-xs text-gray-500 mt-1">Apenas simulação visual do upload.</p>
+                </div>
+            ` : '';
+
+            const html = `
+                <div class="max-w-lg mx-auto my-10 p-8 bg-white shadow-xl rounded-xl">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 text-center">${title}</h2>
+                    <form id="register-form" class="space-y-6">
+                        ${vendorFields}
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700">Nome:</label>
+                            <input type="text" id="name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email:</label>
+                            <input type="email" id="email" name="email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700">Senha:</label>
+                            <input type="password" id="password" name="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="documents" class="block text-sm font-medium text-gray-700">Upload de Documentos (Simulado):</label>
+                            <input type="file" id="documents" name="documents" multiple class="mt-1 block w-full text-sm text-gray-500">
+                            <p class="text-xs text-gray-500 mt-1">Simula o envio de documentos (CNPJ, Cópia de Conta de Energia, etc.).</p>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-md transition duration-200">
+                            Finalizar Cadastro
+                        </button>
+                    </form>
+                </div>
+            `;
+            render(html);
+
+            document.getElementById('register-form').addEventListener('submit', function(event) {
+                event.preventDefault();
+                alert(`Cadastro de ${isConsumer ? 'Consumidor' : 'Vendedor'} para "${document.getElementById('email').value}" simulado com sucesso! Redirecionando para Login.`);
+                // Simulação de salvar os dados no localStorage/mock
+                // MOCK_USERS.push({ id: `temp-${Date.now()}`, email: email.value, password: password.value, role: role, name: name.value });
+                window.location.hash = redirectHash;
+            });
+        }
+
+
+        // --- 4.2. Home da Loja (Consumidor) e Página do Vendedor ---
+
+        function renderShopHomePage() {
+            const user = getLoggedUser();
+            if (!user || user.role !== 'consumer') {
+                alert('Acesso negado. Por favor, logue como Consumidor.');
+                window.location.hash = '#home';
+                return;
+            }
+
+            const vendorCards = MOCK_VENDORS.map(vendor => `
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 flex flex-col items-center text-center hover:shadow-2xl transition duration-300">
+                    <img src="${vendor.photo}" alt="Foto de ${vendor.name}" class="w-24 h-24 rounded-full object-cover mb-4 border-4 border-blue-100">
+                    <h3 class="text-xl font-bold text-gray-900 mb-2">${vendor.name}</h3>
+                    <p class="text-sm text-gray-600 mb-4 h-16 overflow-hidden">${vendor.bio}</p>
+                    <a href="#vendor/${vendor.id}" class="w-full">
+                        ${createButton('Ver Detalhes', '#vendor/' + vendor.id, 'bg-blue-500 hover:bg-blue-600 w-full')}
+                    </a>
+                    <button onclick="startChat('${user.id}', '${vendor.id}')" class="mt-2 w-full px-4 py-2 rounded-lg font-semibold transition duration-200 bg-green-500 hover:bg-green-600 text-white">
+                        Contatar / Iniciar Contrato
+                    </button>
+                </div>
+            `).join('');
+
+            const html = `
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-8 mt-4">Fornecedores de Energia Disponíveis</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    ${vendorCards}
+                </div>
+            `;
+            render(html);
+        }
+        
+        function renderVendorPage(vendorId) {
+            const vendor = MOCK_VENDORS.find(v => v.id === vendorId);
+            const user = getLoggedUser();
+
+            if (!vendor) {
+                render('<h1 class="text-3xl font-bold mt-8 text-red-600">Vendedor não encontrado.</h1>');
+                return;
+            }
+
+            const isConsumer = user && user.role === 'consumer';
+
+            const galleryHtml = vendor.gallery.map(img => `
+                <div class="overflow-hidden rounded-lg shadow-md">
+                    <img src="${img}" alt="Galeria de ${vendor.name}" class="w-full h-48 object-cover hover:scale-105 transition duration-500 cursor-zoom-in">
+                </div>
+            `).join('');
+
+            const html = `
+                <div class="bg-white p-8 rounded-xl shadow-2xl mt-4">
+                    <div class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8 border-b pb-6 mb-6">
+                        <img src="${vendor.photo}" alt="Foto de ${vendor.name}" class="w-36 h-36 rounded-full object-cover border-4 border-blue-500 shadow-lg">
+                        <div class="text-center md:text-left">
+                            <h1 class="text-4xl font-extrabold text-gray-900">${vendor.name}</h1>
+                            <p class="text-xl text-blue-600 mt-1 mb-3">${vendor.bio}</p>
+                            <p class="text-gray-700"><span class="font-semibold">Email:</span> ${vendor.email}</p>
+                            <p class="text-gray-700"><span class="font-semibold">Telefone:</span> ${vendor.phone}</p>
+                        </div>
+                    </div>
+
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Galeria de Projetos e Certificações</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                        ${galleryHtml}
+                    </div>
+
+                    ${isConsumer ? `
+                        <div class="flex justify-center mt-6">
+                            <button onclick="startChat('${user.id}', '${vendorId}')" class="text-lg px-8 py-3 rounded-xl font-bold transition duration-200 bg-green-600 hover:bg-green-700 text-white shadow-lg">
+                                💬 Acessar Chat com ${vendor.name}
+                            </button>
+                        </div>
+                    ` : `
+                        <p class="text-center text-lg text-red-500 font-semibold mt-6">Faça login como Consumidor para iniciar um chat!</p>
+                    `}
+                </div>
+            `;
+            render(html);
+        }
+
+        // --- 4.3. Chat Simulado ---
+
+        /**
+         * Gera um ID de thread de forma consistente, independente da ordem (c1_v1).
+         * @param {string} consumerId
+         * @param {string} vendorId
+         * @returns {string}
+         */
+        function getThreadId(consumerId, vendorId) {
+            // Garante que o consumidor é sempre o primeiro na chave
+            return `${consumerId}_${vendorId}`;
+        }
+
+        /**
+         * Inicia o chat e redireciona.
+         * @param {string} consumerId
+         * @param {string} vendorId
+         */
+        function startChat(consumerId, vendorId) {
+             const user = getLoggedUser();
+             if (!user) {
+                 alert('Você precisa estar logado para iniciar um chat.');
+                 window.location.hash = '#login';
+                 return;
+             }
+             if (user.role === 'vendor' && user.id !== vendorId) {
+                 alert('Vendedores só podem iniciar chat com consumidores a partir do seu painel.');
+                 return;
+             }
+
+             // Simula a criação da thread, se não existir
+             const threadId = getThreadId(consumerId, vendorId);
+             let threads = getChatThreads();
+             if (!threads[threadId]) {
+                 threads[threadId] = [
+                    { sender: 'system', text: `Chat iniciado em ${new Date().toLocaleDateString('pt-BR')}.` }
+                 ];
+                 saveChatThreads(threads);
+             }
+
+             window.location.hash = `#chat/${consumerId}/${vendorId}`;
+        }
+
+
+        function renderChatPage(consumerId, vendorId) {
+            const user = getLoggedUser();
+            if (!user) {
+                window.location.hash = '#login';
+                return;
+            }
+
+            const threadId = getThreadId(consumerId, vendorId);
+            const threads = getChatThreads();
+            const messages = threads[threadId] || [];
+
+            // Identificar os participantes
+            const consumer = MOCK_CONSUMERS.find(c => c.id === consumerId) || MOCK_USERS.find(u => u.id === consumerId && u.role === 'consumer');
+            const vendor = MOCK_VENDORS.find(v => v.id === vendorId) || MOCK_USERS.find(u => u.id === vendorId && u.role === 'vendor');
+            
+            if (!consumer || !vendor) {
+                render('<h1 class="text-3xl font-bold mt-8 text-red-600">Chat inválido. Consumidor ou Vendedor não encontrado.</h1>');
+                return;
+            }
+
+            // Determinar o nome do outro participante
+            const otherParticipantName = user.role === 'consumer' ? vendor.name : consumer.name;
+            const isSenderConsumer = user.role === 'consumer'; // Se o usuário logado for o consumidor
+
+            const messageBubbles = messages.map(msg => {
+                const isMyMessage = (user.role === 'consumer' && msg.sender === consumerId) || (user.role === 'vendor' && msg.sender === vendorId);
+                const isSystem = msg.sender === 'system';
+                
+                let bubbleClass, name;
+
+                if (isSystem) {
+                    bubbleClass = 'text-center text-sm text-gray-500 italic mt-2';
+                    name = '';
+                } else if (isMyMessage) {
+                    bubbleClass = 'chat-bubble-user p-3 max-w-xs md:max-w-md shadow-lg';
+                    name = `<span class="font-bold mb-1 block text-right">${user.name.split(' ')[0]}</span>`;
+                } else {
+                    bubbleClass = 'chat-bubble-other p-3 max-w-xs md:max-w-md shadow-lg';
+                    name = `<span class="font-bold mb-1 block text-left">${otherParticipantName.split(' ')[0]}</span>`;
+                }
+
+                return `
+                    <div class="flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4">
+                        <div class="${bubbleClass}">
+                            ${!isSystem ? name : ''}
+                            ${msg.text}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const html = `
+                <div class="max-w-3xl mx-auto my-6 bg-white rounded-xl shadow-2xl overflow-hidden">
+                    <div class="p-4 bg-blue-600 text-white text-xl font-bold">
+                        Conversa com ${otherParticipantName}
+                    </div>
+                    <div id="chat-messages" class="p-6 h-[500px] overflow-y-auto space-y-4 flex flex-col">
+                        ${messageBubbles}
+                    </div>
+                    <div class="p-4 border-t border-gray-200">
+                        <form id="chat-form" class="flex space-x-3">
+                            <input type="text" id="message-input" placeholder="Digite sua mensagem..." required class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition duration-200">
+                                Enviar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            render(html);
+
+            // Scroll para o final do chat
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            document.getElementById('chat-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const input = document.getElementById('message-input');
+                const text = input.value.trim();
+
+                if (text) {
+                    const newMessage = {
+                        sender: user.id,
+                        text: text,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // 1. Atualiza os dados mockados e salva no localStorage
+                    let currentThreads = getChatThreads();
+                    currentThreads[threadId].push(newMessage);
+                    saveChatThreads(currentThreads);
+                    
+                    // 2. Renderiza a nova mensagem sem recarregar a página
+                    const chatMessagesDiv = document.getElementById('chat-messages');
+                    const isMyMessage = (user.role === 'consumer' && newMessage.sender === consumerId) || (user.role === 'vendor' && newMessage.sender === vendorId);
+                    
+                    const name = `<span class="font-bold mb-1 block ${isMyMessage ? 'text-right' : 'text-left'}">${user.name.split(' ')[0]}</span>`;
+
+                    const bubbleHtml = `
+                        <div class="flex ${isMyMessage ? 'justify-end' : 'justify-start'} mb-4">
+                            <div class="${isMyMessage ? 'chat-bubble-user' : 'chat-bubble-other'} p-3 max-w-xs md:max-w-md shadow-lg">
+                                ${name}
+                                ${text}
+                            </div>
+                        </div>
+                    `;
+                    chatMessagesDiv.insertAdjacentHTML('beforeend', bubbleHtml);
+
+                    // 3. Limpa o input e scrolla
+                    input.value = '';
+                    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+                }
+            });
+        }
+
+        // --- 4.4. Painéis (Consumidor e Vendedor) ---
+
+        function renderConsumerPanel() {
+            const user = getLoggedUser();
+            if (!user || user.role !== 'consumer') {
+                alert('Acesso negado. Por favor, logue como Consumidor.');
+                window.location.hash = '#home';
+                return;
+            }
+
+            const payments = MOCK_PAYMENTS[user.id] || { pending: [], paid: [] };
+
+            // Pagamentos Pendentes
+            const pendingList = payments.pending.length > 0 ? payments.pending.map(p => `
+                <li class="p-4 bg-red-50 border-l-4 border-red-500 flex justify-between items-center rounded-md shadow-sm">
+                    <span>${p.vendor} - <span class="font-semibold text-xl">R$ ${p.amount.toFixed(2).replace('.', ',')}</span></span>
+                    <span>Vencimento: <span class="font-bold">${p.due}</span></span>
+                    <button class="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded transition duration-200" onclick="alert('Simulação: Boleto gerado para R$ ${p.amount.toFixed(2).replace('.', ',')}')">Gerar Boleto (Sim.)</button>
+                </li>
+            `).join('') : '<p class="text-gray-500 p-4 bg-white rounded-lg shadow">Nenhum pagamento pendente.</p>';
+
+            // Pagamentos Pagos
+            const paidList = payments.paid.length > 0 ? payments.paid.map(p => `
+                <li class="p-4 bg-green-50 border-l-4 border-green-500 flex justify-between items-center rounded-md shadow-sm">
+                    <span>${p.vendor} - <span class="font-semibold text-xl">R$ ${p.amount.toFixed(2).replace('.', ',')}</span></span>
+                    <span>Pago em: <span class="font-bold">${p.date}</span></span>
+                    <button class="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded transition duration-200" onclick="alert('Simulação: Nota Fiscal gerada.')">Ver NF (Sim.)</button>
+                </li>
+            `).join('') : '<p class="text-gray-500 p-4 bg-white rounded-lg shadow">Nenhum pagamento realizado ainda.</p>';
+
+
+            const html = `
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-8 mt-4">Olá, ${user.name.split(' ')[0]}! Seu Painel do Consumidor</h1>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-red-500">
+                        <h2 class="text-2xl font-bold text-red-600 mb-4 flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Pagamentos Pendentes
+                        </h2>
+                        <ul class="space-y-4">
+                            ${pendingList}
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-500">
+                        <h2 class="text-2xl font-bold text-green-600 mb-4 flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2l4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Pagamentos Realizados
+                        </h2>
+                        <ul class="space-y-4">
+                            ${paidList}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Seus Contratos Ativos</h2>
+                    <p class="text-gray-600 p-4 bg-white rounded-lg shadow">Você tem um contrato ativo com **Soluções Energéticas Alfa**. <a href="#vendor/v1" class="text-blue-600 hover:underline">Ver detalhes</a>.</p>
+                </div>
+            `;
+            render(html);
+        }
+
+        function renderVendorPanel(tab = 'config') {
+            const user = getLoggedUser();
+            const vendorData = MOCK_VENDORS.find(v => v.id === user.id);
+            
+            if (!user || user.role !== 'vendor' || !vendorData) {
+                alert('Acesso negado. Por favor, logue como Vendedor.');
+                window.location.hash = '#home';
+                return;
+            }
+
+            const tabs = [
+                { id: 'config', name: 'Configurações' },
+                { id: 'contacts', name: 'Consumidores em Contato' },
+            ];
+            
+            const tabNav = tabs.map(t => `
+                <a href="#vendor-panel/${t.id}" class="py-2 px-4 inline-block font-semibold ${tab === t.id ? 'border-b-4 border-blue-600 text-blue-600' : 'text-gray-600 hover:text-blue-600'}">
+                    ${t.name}
+                </a>
+            `).join('');
+
+            let tabContent = '';
+
+            if (tab === 'config') {
+                tabContent = `
+                    <div class="max-w-xl mx-auto space-y-6">
+                        <div class="text-center">
+                            <img src="${vendorData.photo}" alt="Foto/Logo Atual" class="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-gray-200">
+                        </div>
+                        <form id="vendor-config-form" class="space-y-4 bg-gray-50 p-6 rounded-lg shadow-inner">
+                            <div>
+                                <label for="vendor-photo-upload" class="block text-sm font-medium text-gray-700">Editar Foto/Logo</label>
+                                <input type="file" id="vendor-photo-upload" class="mt-1 block w-full text-sm text-gray-500">
+                            </div>
+                            <div>
+                                <label for="vendor-name" class="block text-sm font-medium text-gray-700">Editar Nome / Empresa</label>
+                                <input type="text" id="vendor-name" value="${vendorData.name}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </div>
+                            <div>
+                                <label for="vendor-bio" class="block text-sm font-medium text-gray-700">Editar Biografia</label>
+                                <textarea id="vendor-bio" rows="4" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">${vendorData.bio}</textarea>
+                            </div>
+                            <div>
+                                <label for="vendor-gallery-upload" class="block text-sm font-medium text-gray-700">Upload de Fotos Adicionais</label>
+                                <input type="file" id="vendor-gallery-upload" multiple class="mt-1 block w-full text-sm text-gray-500">
+                                <div class="mt-4 grid grid-cols-3 gap-2">
+                                    ${vendorData.gallery.map((img, index) => `<div class="relative"><img src="${img}" class="w-full h-20 object-cover rounded-md"><button onclick="alert('Simulação: Foto ${index + 1} removida.')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">x</button></div>`).join('')}
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md">Salvar Alterações (Simulado)</button>
+                        </form>
+                    </div>
+                `;
+                 // Adicionar listener de salvamento simulado
+                setTimeout(() => {
+                    document.getElementById('vendor-config-form').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        vendorData.name = document.getElementById('vendor-name').value;
+                        vendorData.bio = document.getElementById('vendor-bio').value;
+                        alert('Configurações atualizadas com sucesso (Simulado)!');
+                        // Forçar re-render para atualizar o cabeçalho (nome)
+                        router();
+                    });
+                }, 0);
+
+
+            } else if (tab === 'contacts') {
+                // Filtra as threads onde o vendedor logado é o participante (vendedorId)
+                const chatThreads = getChatThreads();
+                const contactThreads = Object.keys(chatThreads)
+                    .filter(key => key.endsWith(`_${user.id}`))
+                    .map(key => {
+                        const consumerId = key.split('_')[0];
+                        const consumer = MOCK_CONSUMERS.find(c => c.id === consumerId) || MOCK_USERS.find(u => u.id === consumerId && u.role === 'consumer');
+                        const messages = chatThreads[key];
+                        const lastMessage = messages.length > 0 ? messages[messages.length - 1].text : 'Nenhuma mensagem ainda.';
+                        const unreadCount = messages.filter(m => m.sender !== user.id).length; // Simulação simples
+                        return { consumer, consumerId, lastMessage, unreadCount };
+                    });
+                
+                const contactList = contactThreads.length > 0 ? contactThreads.map(c => `
+                    <li class="p-4 bg-white rounded-lg shadow-lg flex justify-between items-center hover:bg-gray-50 transition duration-200">
+                        <div class="flex items-center space-x-4">
+                            <img src="https://i.pravatar.cc/50?u=${c.consumerId}" class="w-12 h-12 rounded-full object-cover">
+                            <div>
+                                <span class="font-bold text-lg">${c.consumer.name}</span>
+                                <p class="text-sm text-gray-500 truncate max-w-xs">${c.lastMessage}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            ${c.unreadCount > 0 ? `<span class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">${c.unreadCount}</span>` : ''}
+                            <button onclick="startChat('${c.consumerId}', '${user.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded-md transition duration-200">
+                                Abrir Chat
+                            </button>
+                        </div>
+                    </li>
+                `).join('') : '<p class="text-gray-500 p-4 bg-white rounded-lg shadow">Nenhum consumidor entrou em contato ainda.</p>';
+
+
+                tabContent = `
+                    <div class="max-w-3xl mx-auto">
+                        <h3 class="text-xl font-bold mb-4">Lista de Consumidores que Contataram Você</h3>
+                        <ul class="space-y-4">
+                            ${contactList}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            const html = `
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-8 mt-4">Painel do Vendedor: ${vendorData.name}</h1>
+                
+                <nav class="border-b border-gray-200 mb-6">
+                    ${tabNav}
+                </nav>
+                
+                <div id="vendor-tab-content">
+                    ${tabContent}
+                </div>
+            `;
+            render(html);
+        }
+
+        // --- 4.5. Suporte ---
+
+        function renderSupportPage() {
+            const html = `
+                <div class="max-w-md mx-auto my-16 p-8 bg-white shadow-xl rounded-xl">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6 text-center">Abrir Chamado de Suporte</h2>
+                    <form id="support-form" class="space-y-6">
+                        <div>
+                            <label for="support-name" class="block text-sm font-medium text-gray-700">Nome:</label>
+                            <input type="text" id="support-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="support-email" class="block text-sm font-medium text-gray-700">Email:</label>
+                            <input type="email" id="support-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label for="support-description" class="block text-sm font-medium text-gray-700">Descrição do Problema:</label>
+                            <textarea id="support-description" rows="5" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md">
+                            Enviar Ticket de Suporte
+                        </button>
+                    </form>
+                    <div id="success-message" class="hidden mt-6 p-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-md font-semibold">
+                        <p>✅ Ticket aberto com sucesso! Um de nossos agentes entrará em contato em breve (Simulado).</p>
+                    </div>
+                </div>
+            `;
+            render(html);
+
+            document.getElementById('support-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                document.getElementById('support-form').reset();
+                document.getElementById('success-message').classList.remove('hidden');
+                setTimeout(() => document.getElementById('success-message').classList.add('hidden'), 5000);
+            });
+        }
+
+
+        // =========================================================
+        // 5. ROTEADOR SIMPLES (Hash-based)
+        // =========================================================
+
+        function router() {
+            const hash = window.location.hash.slice(1) || 'home';
+            const parts = hash.split('/');
+            const route = parts[0];
+
+            updateHeaderNav(); // Atualiza a navegação em cada mudança de rota
+
+            switch (route) {
+                case 'home':
+                    renderHomePage();
+                    break;
+                case 'login':
+                    renderLoginPage();
+                    break;
+                case 'register':
+                    // Rota /register pode ser acessada de forma genérica
+                    render(
+                        `<div class="max-w-md mx-auto my-16 p-8 text-center">
+                            <h2 class="text-3xl font-bold mb-6">Escolha o Tipo de Cadastro</h2>
+                            <div class="space-x-4">
+                                ${createButton('Sou Consumidor', '#register-consumer', 'bg-green-500 hover:bg-green-600 text-white text-lg px-6 py-3')}
+                                ${createButton('Sou Vendedor', '#register-vendor', 'bg-purple-500 hover:bg-purple-600 text-white text-lg px-6 py-3')}
+                            </div>
+                        </div>`
+                    );
+                    break;
+                case 'register-consumer':
+                    renderRegisterPage('consumer');
+                    break;
+                case 'register-vendor':
+                    renderRegisterPage('vendor');
+                    break;
+                case 'shop':
+                    renderShopHomePage();
+                    break;
+                case 'vendor':
+                    if (parts[1]) {
+                        renderVendorPage(parts[1]);
+                    } else {
+                        window.location.hash = '#shop';
+                    }
+                    break;
+                case 'chat':
+                    if (parts[1] && parts[2]) {
+                        renderChatPage(parts[1], parts[2]); // consumerId, vendorId
+                    } else {
+                         alert('Rota de chat inválida.');
+                         window.location.hash = getLoggedUser()?.role === 'consumer' ? '#shop' : '#vendor-panel';
+                    }
+                    break;
+                case 'consumer-panel':
+                    renderConsumerPanel();
+                    break;
+                case 'vendor-panel':
+                    renderVendorPanel(parts[1] || 'config');
+                    break;
+                case 'support':
+                    renderSupportPage();
+                    break;
+                default:
+                    // Rota não encontrada
+                    render('<h1 class="text-3xl font-bold mt-8">Página não encontrada</h1><p class="mt-4"><a href="#home" class="text-blue-600 hover:underline">Voltar para Home</a></p>');
+            }
+        }
+
+        // =========================================================
+        // 6. INICIALIZAÇÃO
+        // =========================================================
+
+        // Escuta a mudança de hash para rotear a página
+        window.addEventListener('hashchange', router);
+
+        // Chama o roteador na carga inicial da página
+        router();
+
+    </script>
+</body>
+</html>
